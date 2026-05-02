@@ -182,3 +182,61 @@
     border-right-color: var(--border);
   }
 }
+/*Resend Code syling*/
+
+.btn-resend {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-resend:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+@keyframes pulse {
+    0%, 100% { 
+        opacity: 1; 
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.6; 
+        transform: scale(0.95);
+    }
+}
+
+.countdown-number {
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.progress-bar-animated {
+    background: linear-gradient(
+        90deg,
+        #115e59 0%,
+        #1a7f76 50%,
+        #115e59 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes textGlow {
+    0%, 100% {
+        text-shadow: 0 0 0px rgba(17, 94, 89, 0);
+    }
+    50% {
+        text-shadow: 0 0 5px rgba(17, 94, 89, 0.5);
+    }
+}
+
+.countdown-glow {
+    animation: textGlow 1s ease-in-out infinite;
+    font-weight: bold;
+}
