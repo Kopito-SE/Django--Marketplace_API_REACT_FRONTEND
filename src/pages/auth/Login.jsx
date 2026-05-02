@@ -1,0 +1,102 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Lock, LogIn, Mail, Store } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+
+const Login = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const { login } = useAuth();
+    const navigate = useNavigate();
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            await login(email, password);
+            navigate('/');
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="page-shell page-narrow">
+            <div className="surface-card overflow-hidden">
+                <div className="grid md:grid-cols-[0.9fr_1.1fr]">
+                    <div className="mesh-hero hidden min-h-full p-8 text-white md:block">
+                        <div className="flex h-full flex-col justify-between">
+                            <div className="grid h-12 w-12 place-items-center rounded-lg bg-white/15">
+                                <Store size={24} />
+                            </div>
+                            <div>
+                                <p className="mb-2 text-sm font-bold uppercase tracking-widest text-white/70">Welcome Back</p>
+                                <h1 className="text-3xl font-black leading-tight">Pick up where your marketplace day left off.</h1>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 sm:p-8">
+                        <p className="eyebrow">Sign In</p>
+                        <h2 className="section-title mt-1">Access your account</h2>
+                        <p className="mt-2 text-sm leading-6 text-[#66736d]">Manage your cart, orders, profile, and vendor tools.</p>
+
+                        {error && <div className="alert alert-error mt-5">{error}</div>}
+
+                        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+                            <div>
+                                <label className="field-label">Email</label>
+                                <div className="relative">
+                                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#66736d]" size={18} />
+                                    <input
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="form-input pl-10"
+                                        placeholder="you@example.com"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="field-label">Password</label>
+                                <div className="relative">
+                                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#66736d]" size={18} />
+                                    <input
+                                        type="password"
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="form-input pl-10"
+                                        placeholder="Enter your password"
+                                    />
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={loading} className="btn btn-primary w-full">
+                                <LogIn size={18} />
+                                {loading ? 'Signing in...' : 'Sign In'}
+                            </button>
+                        </form>
+
+                        <p className="mt-6 text-center text-sm font-semibold text-[#66736d]">
+                            Do not have an account?{' '}
+                            <Link to="/register" className="text-[#115e59] underline">
+                                Create one
+                            </Link>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Login;
