@@ -40,6 +40,11 @@ const Register = () => {
             const userData = { ...formData };
             delete userData.confirmPassword;
             await register(userData);
+            
+            // Store email in localStorage before navigation
+            localStorage.setItem('pending_verification_email', formData.email);
+            
+            // Navigate with email in state
             navigate('/verify', { state: { email: formData.email } });
         } catch (err) {
             if (err.response?.data) {

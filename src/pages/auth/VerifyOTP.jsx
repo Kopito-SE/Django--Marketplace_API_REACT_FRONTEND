@@ -13,11 +13,16 @@ const VerifyOTP = () => {
     const { verify, resendOTP } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const email = location.state?.email || '';
+    
+    // Get email from location state OR localStorage
+    const email = location.state?.email || localStorage.getItem('pending_verification_email') || '';
 
     useEffect(() => {
         if (!email) {
             navigate('/register');
+        } else {
+            // Store email in localStorage in case of page refresh
+            localStorage.setItem('pending_verification_email', email);
         }
     }, [email, navigate]);
 
@@ -45,11 +50,13 @@ const VerifyOTP = () => {
         try {
             await verify(email, otp);
             setSuccess('Account verified. Redirecting to login...');
+            // Clear stored email after successful verification
+            localStorage.removeItem('pending_verification_email');
             setTimeout(() => {
                 navigate('/login');
             }, 2000);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Invalid OTP. Please try again.');
+            setError(err.response?.data?.detail || err.response?.data?.error || 'Invalid OTP. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -62,8 +69,9 @@ const VerifyOTP = () => {
         try {
             await resendOTP(email);
             setSuccess('A new OTP was sent to your email.');
-        } catch {
-            setError('Failed to resend OTP. Please try again.');
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Failed to resend OTP. Please try again.');
             setResendDisabled(false);
         }
     };

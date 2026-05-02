@@ -5,8 +5,12 @@ export const register = async (userData) => {
     return response.data;
 };
 
-export const verifyOTP = async (email, otp) => {
-    const response = await axiosInstance.post('/auth/verify/', { email, otp });
+export const verifyOTP = async (email, code) => {
+    // The backend expects 'code', not 'otp'
+    const response = await axiosInstance.post('/auth/verify/', { 
+        email: email, 
+        code: code  // Changed from 'otp' to 'code'
+    });
     return response.data;
 };
 
@@ -27,4 +31,5 @@ export const login = async (email, password) => {
 export const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('pending_verification_email');
 };
