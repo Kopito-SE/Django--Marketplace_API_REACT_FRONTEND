@@ -13,7 +13,7 @@ const Profile = () => {
         first_name: '',
         last_name: '',
         email: '',
-        phone: '',
+        phone_number: '',
     });
     const [passwordData, setPasswordData] = useState({
         old_password: '',
@@ -34,7 +34,7 @@ const Profile = () => {
                     first_name: response.data.first_name || '',
                     last_name: response.data.last_name || '',
                     email: response.data.email || '',
-                    phone: response.data.phone || '',
+                    phone_number: response.data.phone_number || '',
                 });
             } catch (err) {
                 setError('Failed to load profile. Make sure the Django API is running.');
@@ -54,7 +54,7 @@ const Profile = () => {
         setError('');
 
         try {
-            const response = await axiosInstance.put('/auth/profile/', formData);
+            const response = await axiosInstance.patch('/auth/profile/', formData);
             setProfile(response.data);
             setEditMode(false);
             setMessage('Profile updated successfully.');
@@ -148,7 +148,7 @@ const Profile = () => {
                             <ProfileField label="Full Name" value={`${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Not provided'} />
                             <ProfileField label="Username" value={profile?.username || 'Not provided'} />
                             <ProfileField label="Email" value={profile?.email || 'Not provided'} />
-                            <ProfileField label="Phone" value={profile?.phone || 'Not provided'} />
+                            <ProfileField label="Phone" value={profile?.phone_number || 'Not provided'} />
                         </div>
                     ) : (
                         <form onSubmit={handleProfileUpdate} className="space-y-5">
@@ -186,8 +186,8 @@ const Profile = () => {
                                 <label className="field-label">Phone</label>
                                 <input
                                     type="tel"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    value={formData.phone_number}
+                                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                                     className="form-input"
                                 />
                             </div>
