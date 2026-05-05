@@ -1,7 +1,10 @@
 import axiosInstance from './axiosConfig';
 
+
 export const getProducts = async (params = {}) => {
-    const response = await axiosInstance.get('/products/', { params });
+    const response = await axiosInstance.get('/products/', {
+        params: params, // 🔥 THIS is the fix
+    });
     return response.data;
 };
 

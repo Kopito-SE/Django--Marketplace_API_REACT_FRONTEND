@@ -26,10 +26,13 @@ const CreateProduct = () => {
     const fetchCategories = async () => {
         try {
             const data = await getCategories();
-            console.log('Categories loaded:', data);
+            console.log('Raw Categories:', data);
+
+            //Handle Pagination or direct array
+            const categoryArray = Array.isArray(data) ? data : data.results;
             
             // Transform API data to match expected format
-            const transformedCategories = data.map(cat => ({
+            const transformedCategories = categoryArray.map(cat => ({
                 value: cat.id,
                 label: cat.name
             }));
@@ -67,9 +70,9 @@ const CreateProduct = () => {
             const data = new FormData();
             data.append('name', formData.name);
             data.append('description', formData.description);
-            data.append('price', formData.price);
-            data.append('stock', formData.stock);
-            data.append('category', formData.category);
+            data.append('price', parseFloat(formData.price));
+            data.append('stock', parseInt(formData.stock));
+            data.append('category', parseInt(formData.category));
             if (formData.image) {
                 data.append('image', formData.image);
             }
@@ -88,9 +91,14 @@ const CreateProduct = () => {
 
             await createProduct(data);
             navigate('/vendor/dashboard');
-        } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to create product.');
-        } finally {
+        } catch (error) {
+             console.error("FULL ERROR:", error.response?.data);
+              setError(
+                  error.response?.data?.detail ||
+                   JSON.stringify(error.response?.data) ||
+                       "Failed to create product"
+        );
+        }finally {
             setLoading(false);
         }
     };
@@ -184,9 +192,11 @@ const CreateProduct = () => {
                                   className="form-input"
                         >
                             <option value="">Select Category</option>
-                              {categories.map((item) => (
-                              <option key={item.value || 'placeholder'} value={item.value} disabled={!item.value}>
-                                   {item.value ? item.label : 'Select Category'}
+                              
+                              {categories.map(cat => (
+                              <option key={cat.value || 'placeholder'} value={cat.value} disabled={!cat.value}>
+                                   {cat.value ? cat.label : 'Select Category'}
+                                   
                             </option>
                ))}
                             </select>

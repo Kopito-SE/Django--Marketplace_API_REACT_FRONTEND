@@ -5,23 +5,24 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000
 
 const axiosInstance = axios.create({
     baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+   
 });
 
 // Request interceptor to add token
+
 axiosInstance.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('access_token');
+        console.log('🔑 Token being sent:', token ? 'Yes' : 'NO TOKEN!');
+        console.log('🔑 Token value:', token);
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        console.log('📤 Request config:', config);
         return config;
     },
     (error) => Promise.reject(error)
 );
-
 // Response interceptor to handle token refresh
 axiosInstance.interceptors.response.use(
     (response) => response,
