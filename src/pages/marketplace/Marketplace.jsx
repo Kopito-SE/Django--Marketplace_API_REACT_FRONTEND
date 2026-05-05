@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Boxes, PackageSearch, Search, ShieldCheck, SlidersHorizontal, Store } from 'lucide-react';
 import { getProducts } from '../../api/productApi';
@@ -13,48 +13,70 @@ const Marketplace = () => {
     const [searchDraft, setSearchDraft] = useState('');
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const [hasNext, setHasNext] = useState(false);
+    const [hasPrev, setHasPrev] = useState(false);
 
     const featuredCount = products.filter((product) => Number(product.stock) > 0).length;
 
-    useEffect(() => {
-        const fetchProducts = async () => {
-            setLoading(true);
-            setError('');
+    // Single fetch function that takes explicit page parameter
+  const fetchProducts = useCallback(async (pageNumber, currentSearch, currentCategory) => {
+    setLoading(true);
+    setError('');
 
-            try {
-                const params = {
-                    search: search || undefined,
-                    category: category || undefined,
-                    page: currentPage,
-                };
-                const data = await getProducts(params);
-                setProducts(data.results || data);
-                setTotalPages(Math.max(1, Math.ceil((data.count || (data.results || data).length || 0) / 10)));
-                setPreviewMode(false);
-            } catch (err) {
-                const fallback = demoProducts.filter((product) => {
-                    const matchesSearch =
-                        !search ||
-                        product.name.toLowerCase().includes(search.toLowerCase()) ||
-                        product.description.toLowerCase().includes(search.toLowerCase());
-                    const matchesCategory = !category || product.category === category;
-                    return matchesSearch && matchesCategory;
-                });
-
-                setProducts(fallback);
-                setTotalPages(1);
-                setPreviewMode(true);
-                setError('Django API is offline, so this page is showing preview products.');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
+    try {
+        const params = {
+            search: currentSearch || undefined,
+            category: currentCategory || undefined,
+            page: pageNumber,
         };
 
-        fetchProducts();
-    }, [search, category, currentPage]);
+        const data = await getProducts(params);
+
+        // ✅ Set totalCount BEFORE setting page
+        setTotalCount(data.count || 0);
+        setProducts(data.results || []);
+        setHasNext(!!data.next);
+        setHasPrev(!!data.previous);
+        setPage(pageNumber);
+        setPreviewMode(false);
+    } catch (err) {
+        const filteredDemo = demoProducts.filter((product) => {
+            const matchesSearch =
+                !currentSearch ||
+                product.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
+                product.description.toLowerCase().includes(currentSearch.toLowerCase());
+            const matchesCategory = !currentCategory || product.category === currentCategory;
+            return matchesSearch && matchesCategory;
+        });
+
+        setTotalCount(filteredDemo.length);
+        setProducts(filteredDemo);
+        setHasNext(false);
+        setHasPrev(false);
+        setPage(1);
+        setPreviewMode(true);
+        setError('Django API is offline, so this page is showing preview products.');
+        console.error('API Error:', err);
+    } finally {
+        setLoading(false);
+    }
+}, []);// No dependencies needed, we pass everything as parameters
+
+    // Initial fetch and filter changes -> reset to page 1
+    useEffect(() => {
+        fetchProducts(1, search, category);
+    }, [search, category]); // Only run when filters change
+
+    // Handle page navigation
+    const goToPage = (newPage) => {
+        if (newPage >= 1 && !loading) {
+            fetchProducts(newPage, search, category);
+        }
+    };
 
     const selectedCategoryLabel = useMemo(
         () => categories.find((item) => item.value === category)?.label || 'All Categories',
@@ -63,9 +85,10 @@ const Marketplace = () => {
 
     const handleSearch = (e) => {
         e.preventDefault();
-        setCurrentPage(1);
         setSearch(searchDraft.trim());
     };
+    const PAGE_SIZE = 12;
+    const totalPages = loading ? Math.max(page, Math.ceil(totalCount / PAGE_SIZE) || 1) : Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
     return (
         <div>
@@ -81,7 +104,7 @@ const Marketplace = () => {
                                 Browse products, manage orders, and run a vendor storefront from one responsive marketplace UI.
                             </p>
                             <div className="mt-6 hidden max-w-xl gap-3 sm:grid sm:grid-cols-3">
-                                <HeroMetric label="Products" value={loading ? '...' : products.length} />
+                                <HeroMetric label="Products" value={loading ? '...' : totalCount} />
                                 <HeroMetric label="Available" value={loading ? '...' : featuredCount} />
                                 <HeroMetric label="Category" value={selectedCategoryLabel} />
                             </div>
@@ -110,10 +133,7 @@ const Marketplace = () => {
                                 </label>
                                 <select
                                     value={category}
-                                    onChange={(e) => {
-                                        setCurrentPage(1);
-                                        setCategory(e.target.value);
-                                    }}
+                                    onChange={(e) => setCategory(e.target.value)}
                                     className="form-input"
                                 >
                                     {categories.map((item) => (
@@ -157,36 +177,39 @@ const Marketplace = () => {
                                 Preview mode keeps the UI usable while your backend is not running.
                             </div>
                         )}
+
                         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                             {products.map((product) => (
                                 <ProductCard key={product.id} product={product} />
                             ))}
                         </div>
-                    </>
-                )}
 
-                {totalPages > 1 && (
-                    <div className="mt-8 flex items-center justify-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="btn btn-ghost"
-                        >
-                            Previous
-                        </button>
-                        <span className="rounded-lg bg-white px-4 py-3 text-sm font-bold text-[#66736d]">
-                            Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="btn btn-ghost"
-                        >
-                            Next
-                        </button>
-                    </div>
+                        <div className="mt-8 flex items-center justify-center gap-4">
+                            <button
+                                onClick={() => goToPage(page - 1)}
+                                disabled={!hasPrev || loading}
+                                className="btn btn-ghost disabled:opacity-40"
+                            >
+                                ← Previous
+                            </button>
+                           
+                            <span className="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-[#66736d] shadow-sm">
+                                Page {page} of {totalPages}
+                            </span>
+
+                            <button
+                                onClick={() => goToPage(page + 1)}
+                                disabled={!hasNext || loading}
+                                className="btn btn-ghost disabled:opacity-40"
+                            >
+                                Next →
+                            </button>
+                        </div>
+
+                        <p className="mt-4 text-center text-sm text-[#66736d]">
+                            Showing {products.length} of {totalCount} products
+                        </p>
+                    </>
                 )}
             </section>
         </div>
