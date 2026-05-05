@@ -5,6 +5,7 @@ import { addToCart } from '../../api/cartApi';
 import { getProductDetails } from '../../api/productApi';
 import { createReview, getProductReviews } from '../../api/reviewApi';
 import { useAuth } from '../../hooks/useAuth';
+import { useProductDetails } from '../../hooks/useProductDetails'; // NEW: Import the React Query hook
 import { demoProducts } from '../../data/demoProducts';
 import { dateLabel, money } from '../../utils/formatters';
 
@@ -29,9 +30,11 @@ const ProductDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
-    const [product, setProduct] = useState(null);
+    
+    // REPLACE the old product state with React Query
+    const { data: product, isLoading: productLoading, error: productError } = useProductDetails(id);
+    
     const [reviews, setReviews] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [previewMode, setPreviewMode] = useState(false);
     const [addingToCart, setAddingToCart] = useState(false);
     const [quantity, setQuantity] = useState(1);
@@ -41,26 +44,8 @@ const ProductDetail = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    // Keep the reviews fetching as-is (or upgrade later)
     useEffect(() => {
-        const fetchProductDetails = async () => {
-            setLoading(true);
-            setError('');
-
-            try {
-                const data = await getProductDetails(id);
-                setProduct(data);
-                setPreviewMode(false);
-            } catch (err) {
-                const fallback = demoProducts.find((item) => String(item.id) === String(id));
-                setProduct(fallback || null);
-                setPreviewMode(Boolean(fallback));
-                setError(fallback ? 'Showing a preview product because the Django API is offline.' : 'Failed to load product details.');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         const fetchReviews = async () => {
             try {
                 const data = await getProductReviews(id);
@@ -71,11 +56,27 @@ const ProductDetail = () => {
             }
         };
 
-        fetchProductDetails();
         fetchReviews();
     }, [id]);
 
-    const maxStock = useMemo(() => Math.max(0, Number(product?.stock || 0)), [product]);
+    // Handle preview mode when API fails
+    useEffect(() => {
+        if (productError) {
+            const fallback = demoProducts.find((item) => String(item.id) === String(id));
+            if (fallback) {
+                setPreviewMode(true);
+                // Note: product stays as undefined, but we'll show fallback in render
+            }
+        } else if (product) {
+            setPreviewMode(false);
+        }
+    }, [product, productError, id]);
+
+    const maxStock = useMemo(() => {
+        // Use product from React Query or fallback to demo product
+        const currentProduct = product || demoProducts.find((item) => String(item.id) === String(id));
+        return Math.max(0, Number(currentProduct?.stock || 0));
+    }, [product, id]);
 
     const handleAddToCart = async () => {
         if (!isAuthenticated) {
@@ -83,7 +84,7 @@ const ProductDetail = () => {
             return;
         }
 
-        if (previewMode) {
+        if (previewMode || !product) {
             setSuccess('Preview product selected. Connect the Django API to add real items to cart.');
             setTimeout(() => setSuccess(''), 3500);
             return;
@@ -110,7 +111,7 @@ const ProductDetail = () => {
             return;
         }
 
-        if (previewMode) {
+        if (previewMode || !product) {
             setReviews((items) => [
                 {
                     id: `local-${Date.now()}`,
@@ -146,7 +147,8 @@ const ProductDetail = () => {
         }
     };
 
-    if (loading) {
+    // Loading state
+    if (productLoading) {
         return (
             <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
                 <div className="loading-spinner" />
@@ -155,10 +157,14 @@ const ProductDetail = () => {
         );
     }
 
-    if (!product) {
+    // Show actual product from API or fallback to demo
+    const displayProduct = product || demoProducts.find((item) => String(item.id) === String(id));
+    const displayError = productError && !displayProduct ? 'Failed to load product from API. Showing demo data.' : null;
+
+    if (!displayProduct) {
         return (
             <div className="page-shell page-narrow">
-                <div className="alert alert-error">{error}</div>
+                <div className="alert alert-error">{productError?.message || 'Product not found'}</div>
                 <Link to="/" className="btn btn-ghost mt-5">
                     <ArrowLeft size={18} />
                     Back to marketplace
@@ -174,17 +180,17 @@ const ProductDetail = () => {
                 Back to marketplace
             </Link>
 
-            {(success || error) && (
+            {(success || error || displayError) && (
                 <div className={`${success ? 'alert alert-success' : 'alert alert-error'} mb-5`}>
-                    {success || error}
+                    {success || error || displayError}
                 </div>
             )}
 
             <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
                 <div className="surface-card overflow-hidden">
                     <div className="aspect-square bg-[#eef7f4]">
-                        {product.image ? (
-                            <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                        {displayProduct.image ? (
+                            <img src={displayProduct.image} alt={displayProduct.name} className="h-full w-full object-cover" />
                         ) : (
                             <div className="grid h-full place-items-center bg-[linear-gradient(135deg,#d9f3ee,#fff2e9)] text-[#115e59]">
                                 <Boxes size={72} />
@@ -199,24 +205,24 @@ const ProductDetail = () => {
                             <span className={`badge ${maxStock > 0 ? 'badge-success' : 'badge-danger'}`}>
                                 {maxStock > 0 ? `${maxStock} in stock` : 'Out of stock'}
                             </span>
-                            {previewMode && (
+                            {(previewMode || !product) && (
                                 <span className="badge badge-info">
                                     <ShieldCheck size={14} />
-                                    Preview
+                                    Preview (API offline)
                                 </span>
                             )}
                         </div>
-                        <h1 className="text-3xl font-black leading-tight text-[#17211d] sm:text-4xl">{product.name}</h1>
-                        <p className="mt-4 text-base leading-7 text-[#66736d]">{product.description}</p>
+                        <h1 className="text-3xl font-black leading-tight text-[#17211d] sm:text-4xl">{displayProduct.name}</h1>
+                        <p className="mt-4 text-base leading-7 text-[#66736d]">{displayProduct.description}</p>
                         <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
                             <div>
                                 <p className="text-sm font-bold text-[#66736d]">Price</p>
-                                <p className="text-4xl font-black text-[#0f766e]">{money(product.price)}</p>
+                                <p className="text-4xl font-black text-[#0f766e]">{money(displayProduct.price)}</p>
                             </div>
-                            {product.vendor?.store_name && (
+                            {displayProduct.vendor?.store_name && (
                                 <div className="flex items-center gap-2 rounded-lg border border-[#dfe7e2] bg-[#f8faf7] px-4 py-3">
                                     <Store size={18} className="text-[#115e59]" />
-                                    <span className="text-sm font-bold text-[#34433d]">{product.vendor.store_name}</span>
+                                    <span className="text-sm font-bold text-[#34433d]">{displayProduct.vendor.store_name}</span>
                                 </div>
                             )}
                         </div>
@@ -271,6 +277,7 @@ const ProductDetail = () => {
                 </div>
             </section>
 
+            {/* Rest of your component remains exactly the same */}
             <section className="mt-9 grid gap-6 lg:grid-cols-[0.82fr_1.18fr]">
                 <form onSubmit={handleSubmitReview} className="surface-card p-6">
                     <p className="eyebrow">Reviews</p>

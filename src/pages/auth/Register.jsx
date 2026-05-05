@@ -11,7 +11,7 @@ const Register = () => {
         confirmPassword: '',
         first_name: '',
         last_name: '',
-        phone: '',
+        phone_number: '',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -137,8 +137,8 @@ const Register = () => {
                             <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#66736d]" size={18} />
                             <input
                                 type="tel"
-                                name="phone"
-                                value={formData.phone}
+                                name="phone_number"
+                                value={formData.phone_number}
                                 onChange={handleChange}
                                 className="form-input pl-10"
                                 placeholder="254700000000"

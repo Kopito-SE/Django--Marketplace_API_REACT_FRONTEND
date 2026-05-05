@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ImagePlus, PackagePlus, Save } from 'lucide-react';
 import { createProduct } from '../../api/productApi';
-import { categories } from '../../data/demoProducts';
+import { getCategories } from '../../api/categoryApi';
 
 const CreateProduct = () => {
     const navigate = useNavigate();
+
+    const [categories, setCategories] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -14,9 +16,36 @@ const CreateProduct = () => {
         category: '',
         image: null,
     });
+
     const [imagePreview, setImagePreview] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // 🔥 Fetch categories from API
+    useEffect(() => {
+    const fetchCategories = async () => {
+        try {
+            const data = await getCategories();
+            console.log('Categories loaded:', data);
+            
+            // Transform API data to match expected format
+            const transformedCategories = data.map(cat => ({
+                value: cat.id,
+                label: cat.name
+            }));
+            
+            setCategories(transformedCategories);
+        } catch (err) {
+            console.error("Failed to load categories", err);
+            setError("Failed to load categories");
+            setCategories([]);
+        }
+    };
+
+    fetchCategories();
+}, []);
+
+    // ... rest of your code remains the same
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -44,6 +73,18 @@ const CreateProduct = () => {
             if (formData.image) {
                 data.append('image', formData.image);
             }
+
+            console.log('=== Form Submission Debug ===');
+            console.log('Form Data:', formData);
+            console.log('Category value:', formData.category);
+            console.log('Category type:', typeof formData.category);
+            console.log('Image file:', formData.image);
+        
+        // Log all FormData entries
+           console.log('FormData entries:');
+           for (let pair of data.entries()) {
+               console.log(pair[0], '=', pair[1]);
+           }
 
             await createProduct(data);
             navigate('/vendor/dashboard');
@@ -136,17 +177,18 @@ const CreateProduct = () => {
                         <div>
                             <label className="field-label">Category</label>
                             <select
-                                name="category"
-                                required
-                                value={formData.category}
-                                onChange={handleChange}
-                                className="form-input"
-                            >
-                                {categories.map((item) => (
-                                    <option key={item.value || 'placeholder'} value={item.value} disabled={!item.value}>
-                                        {item.value ? item.label : 'Select Category'}
-                                    </option>
-                                ))}
+                                  name="category"
+                                  required
+                                  value={formData.category}
+                                  onChange={handleChange}
+                                  className="form-input"
+                        >
+                            <option value="">Select Category</option>
+                              {categories.map((item) => (
+                              <option key={item.value || 'placeholder'} value={item.value} disabled={!item.value}>
+                                   {item.value ? item.label : 'Select Category'}
+                            </option>
+               ))}
                             </select>
                         </div>
 
