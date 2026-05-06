@@ -19,3 +19,10 @@ export const createProduct = async (productData) => {
     });
     return response.data;
 };
+
+export const getCategories = async () => {
+
+    const response = await axiosInstance.get('/products/categories/');
+    return response.data;
+
+}

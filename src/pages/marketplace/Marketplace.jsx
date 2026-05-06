@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Boxes, PackageSearch, Search, ShieldCheck, SlidersHorizontal, Store } from 'lucide-react';
-import { getProducts } from '../../api/productApi';
-import { categories, demoProducts } from '../../data/demoProducts';
+import { getProducts, getCategories } from '../../api/productApi';
+import { demoProducts } from '../../data/demoProducts';
 import { money } from '../../utils/formatters';
 
 const Marketplace = () => {
@@ -13,6 +13,7 @@ const Marketplace = () => {
     const [searchDraft, setSearchDraft] = useState('');
     const [search, setSearch] = useState('');
     const [category, setCategory] = useState('');
+    const [categories, setCategories] = useState([]);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -23,53 +24,96 @@ const Marketplace = () => {
     const featuredCount = products.filter((product) => Number(product.stock) > 0).length;
 
     // Single fetch function that takes explicit page parameter
-  const fetchProducts = useCallback(async (pageNumber, currentSearch, currentCategory) => {
-    setLoading(true);
-    setError('');
+    const fetchProducts = useCallback(async (pageNumber, currentSearch, currentCategory) => {
+        setLoading(true);
+        setError('');
 
-    try {
-        const params = {
-            search: currentSearch || undefined,
-            category: currentCategory || undefined,
-            page: pageNumber,
-        };
+        try {
+            const params = {
+                search: currentSearch || undefined,
+                category: currentCategory || undefined,
+                page: pageNumber,
+            };
 
-        const data = await getProducts(params);
+            const data = await getProducts(params);
 
-        // ✅ Set totalCount BEFORE setting page
-        setTotalCount(data.count || 0);
-        setProducts(data.results || []);
-        setHasNext(!!data.next);
-        setHasPrev(!!data.previous);
-        setPage(pageNumber);
-        setPreviewMode(false);
-    } catch (err) {
-        const filteredDemo = demoProducts.filter((product) => {
-            const matchesSearch =
-                !currentSearch ||
-                product.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
-                product.description.toLowerCase().includes(currentSearch.toLowerCase());
-            const matchesCategory = !currentCategory || product.category === currentCategory;
-            return matchesSearch && matchesCategory;
-        });
+            setTotalCount(data.count || 0);
+            setProducts(data.results || []);
+            setHasNext(!!data.next);
+            setHasPrev(!!data.previous);
+            setPage(pageNumber);
+            setPreviewMode(false);
+        } catch (err) {
+            const filteredDemo = demoProducts.filter((product) => {
+                const matchesSearch =
+                    !currentSearch ||
+                    product.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
+                    product.description.toLowerCase().includes(currentSearch.toLowerCase());
+                const matchesCategory = !currentCategory || product.category === currentCategory;
+                return matchesSearch && matchesCategory;
+            });
 
-        setTotalCount(filteredDemo.length);
-        setProducts(filteredDemo);
-        setHasNext(false);
-        setHasPrev(false);
-        setPage(1);
-        setPreviewMode(true);
-        setError('Django API is offline, so this page is showing preview products.');
-        console.error('API Error:', err);
-    } finally {
-        setLoading(false);
-    }
-}, []);// No dependencies needed, we pass everything as parameters
+            setTotalCount(filteredDemo.length);
+            setProducts(filteredDemo);
+            setHasNext(false);
+            setHasPrev(false);
+            setPage(1);
+            setPreviewMode(true);
+            setError('Django API is offline, so this page is showing preview products.');
+            console.error('API Error:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+    
+
+
+    // Fetch categories on mount
+    useEffect(() => {
+    const fetchCategories = async () => {
+        try {
+            const data = await getCategories();
+
+            console.log("RAW CATEGORY RESPONSE:", data);
+
+            let categoriesArray = [];
+
+            // 🔥 Handle ALL possible API shapes
+            let raw;
+
+            if (Array.isArray(data)) {
+                raw = data; // already array
+            } else if (Array.isArray(data?.results)) {
+                raw = data.results; // DRF paginated
+            } else if (Array.isArray(data?.data)) {
+                raw = data.data;
+            } else if (Array.isArray(data?.categories)) {
+                raw = data.categories;
+            } else {
+                raw = [];
+            }
+
+            categoriesArray = raw.map((cat) => ({
+                value: String(cat.id ?? cat.value),
+                label: cat.name ?? cat.title ?? cat.label ?? "Unnamed",
+            }));
+
+            console.log("PROCESSED CATEGORIES:", categoriesArray);
+
+            setCategories(categoriesArray);
+        } catch (err) {
+            console.error("Error fetching categories:", err);
+            setCategories([]);
+        }
+    };
+
+    fetchCategories();
+}, []);
 
     // Initial fetch and filter changes -> reset to page 1
     useEffect(() => {
         fetchProducts(1, search, category);
-    }, [search, category]); // Only run when filters change
+    }, [search, category, fetchProducts]);
 
     // Handle page navigation
     const goToPage = (newPage) => {
@@ -78,15 +122,17 @@ const Marketplace = () => {
         }
     };
 
-    const selectedCategoryLabel = useMemo(
-        () => categories.find((item) => item.value === category)?.label || 'All Categories',
-        [category],
-    );
+    const selectedCategoryLabel = useMemo(() => {
+        if (!category) return 'All Categories';
+        const found = categories.find((item) => item.value === category);
+        return found ? found.label : 'All Categories';
+    }, [category, categories]);
 
     const handleSearch = (e) => {
         e.preventDefault();
         setSearch(searchDraft.trim());
     };
+
     const PAGE_SIZE = 12;
     const totalPages = loading ? Math.max(page, Math.ceil(totalCount / PAGE_SIZE) || 1) : Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -131,17 +177,23 @@ const Marketplace = () => {
                                         className="form-input pl-10"
                                     />
                                 </label>
-                                <select
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="form-input"
-                                >
-                                    {categories.map((item) => (
-                                        <option key={item.value || 'all'} value={item.value}>
-                                            {item.label}
-                                        </option>
-                                    ))}
-                                </select>
+<select
+    value={category}
+    onChange={(e) => setCategory(e.target.value)}
+    className="form-input"
+>
+    <option value="">All Categories</option>
+
+    {categories.length === 0 ? (
+        <option disabled>Loading categories...</option>
+    ) : (
+        categories.map((item) => (
+            <option key={item.value} value={item.value}>
+                {item.label}
+            </option>
+        ))
+    )}
+</select>
                                 <button type="submit" className="btn btn-accent whitespace-nowrap">
                                     Search
                                 </button>
