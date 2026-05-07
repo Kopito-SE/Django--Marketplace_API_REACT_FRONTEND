@@ -9,6 +9,7 @@ import { useProductDetails } from '../../hooks/useProductDetails'; // NEW: Impor
 import { demoProducts } from '../../data/demoProducts';
 import { dateLabel, money } from '../../utils/formatters';
 
+
 const sampleReviews = [
     {
         id: 'sample-1',
@@ -132,7 +133,7 @@ const ProductDetail = () => {
         setSubmittingReview(true);
         setError('');
         try {
-            await createReview(id, { review: reviewText, rating });
+            await createReview(id, { comment: reviewText, rating });
             setReviewText('');
             setRating(5);
             const data = await getProductReviews(id);
@@ -277,7 +278,7 @@ const ProductDetail = () => {
                 </div>
             </section>
 
-            {/* Rest of your component remains exactly the same */}
+            
             <section className="mt-9 grid gap-6 lg:grid-cols-[0.82fr_1.18fr]">
                 <form onSubmit={handleSubmitReview} className="surface-card p-6">
                     <p className="eyebrow">Reviews</p>
@@ -362,7 +363,7 @@ const ReviewCard = ({ review }) => (
             </div>
             <span className="text-xs font-bold text-[#66736d]">{dateLabel(review.created_at)}</span>
         </div>
-        <p className="mt-3 leading-6 text-[#34433d]">{review.review}</p>
+        <p className="mt-3 leading-6 text-[#34433d]">{review.comment}</p>
     </article>
 );
 
