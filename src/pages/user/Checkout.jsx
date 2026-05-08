@@ -1,27 +1,46 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreditCard, Phone, ShieldCheck } from 'lucide-react';
-import { getCart } from '../../api/cartApi';
+import { getCart, checkout } from '../../api/cartApi';
 import { initiatePayment } from '../../api/paymentApi';
 import { money } from '../../utils/formatters';
 
 const Checkout = () => {
     const [cart, setCart] = useState(null);
+    const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [creatingOrder, setCreatingOrder] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [phoneNumber, setPhoneNumber] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchCart = async () => {
+        const fetchCartAndCreateOrder = async () => {
             try {
-                const data = await getCart();
-                if (!data || data.items?.length === 0) {
+                // First get the cart
+                const cartData = await getCart();
+                
+                if (!cartData || cartData.items?.length === 0) {
                     navigate('/cart');
                     return;
                 }
-                setCart(data);
+                
+                setCart(cartData);
+                
+                // Then create the order from the cart
+                setCreatingOrder(true);
+                try {
+                    const orderData = await checkout();
+                    setOrder(orderData);
+                    console.log('✅ Order created:', orderData);
+                } catch (err) {
+                    console.error('Failed to create order:', err);
+                    setError(err.response?.data?.message || 'Failed to create order. Please try again.');
+                } finally {
+                    setCreatingOrder(false);
+                }
+                
             } catch (err) {
                 setError('Failed to load cart. Make sure the Django API is running.');
                 console.error(err);
@@ -30,10 +49,9 @@ const Checkout = () => {
             }
         };
 
-        fetchCart();
+        fetchCartAndCreateOrder();
     }, [navigate]);
 
-    // Fix: Use line_total from API instead of recalculating
     const total = useMemo(
         () => cart?.items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0,
         [cart],
@@ -41,6 +59,12 @@ const Checkout = () => {
 
     const handleMpesaPayment = async (e) => {
         e.preventDefault();
+        
+        if (!order) {
+            setError('No order found. Please refresh the page.');
+            return;
+        }
+        
         setProcessing(true);
         setError('');
 
@@ -48,38 +72,43 @@ const Checkout = () => {
             const response = await initiatePayment({
                 phone: phoneNumber,
                 amount: total,
-                order_id: Number(cart.id),
+                order_id: order.order_id || order.id,  // Use the order ID from response
             });
 
-            const checkoutRequestID = response.CheckoutRequestID || response.checkout_request_id;
+            const checkoutRequestID = response.CheckoutRequestID;
             if (checkoutRequestID) {
                 localStorage.setItem('checkoutRequestID', checkoutRequestID);
+                localStorage.setItem('currentOrderId', order.order_id || order.id);
                 navigate('/payment-status', {
                     state: {
                         checkoutRequestID,
                         amount: total,
+                        orderId: order.order_id || order.id,
                     },
                 });
             } else {
                 setError('Payment request was sent, but no checkout request ID was returned.');
             }
         } catch (err) {
+            console.error('Payment error:', err);
             setError(err.response?.data?.error || 'Payment initiation failed. Please try again.');
         } finally {
             setProcessing(false);
         }
     };
 
-    if (loading) {
+    if (loading || creatingOrder) {
         return (
             <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
                 <div className="loading-spinner" />
-                <p className="font-bold text-[#66736d]">Loading checkout...</p>
+                <p className="font-bold text-[#66736d]">
+                    {creatingOrder ? 'Creating your order...' : 'Loading checkout...'}
+                </p>
             </div>
         );
     }
 
-    if (!cart) {
+    if (!cart || !order) {
         return (
             <div className="page-shell page-narrow">
                 <div className="alert alert-error">{error || 'Checkout is not available right now.'}</div>
@@ -102,18 +131,16 @@ const Checkout = () => {
                             <p className="eyebrow">Order Summary</p>
                             <h2 className="section-title mt-1 text-xl">Items in your order</h2>
                         </div>
-                        <span className="badge badge-info">{cart.items.length} items</span>
+                        <span className="badge badge-info">Order #{order.order_id || order.id}</span>
                     </div>
 
                     <div className="divide-y divide-[#dfe7e2]">
                         {cart.items.map((item) => (
                             <div key={item.id} className="flex items-start justify-between gap-4 py-4 first:pt-0">
                                 <div>
-                                    {/* Fix: Use product_name directly from item, not item.product.name */}
                                     <p className="font-black text-[#17211d]">{item.product_name}</p>
                                     <p className="mt-1 text-sm font-semibold text-[#66736d]">Quantity {item.quantity}</p>
                                 </div>
-                                {/* Fix: Use line_total from API */}
                                 <p className="shrink-0 font-black text-[#0f766e]">
                                     {money(item.line_total || 0)}
                                 </p>
