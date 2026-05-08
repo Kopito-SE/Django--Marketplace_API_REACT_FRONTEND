@@ -34,8 +34,9 @@ const Cart = () => {
         return undefined;
     }, [fetchCart, isAuthenticated]);
 
+    // Use line_total from API instead of recalculating
     const total = useMemo(
-        () => cart?.items?.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0) || 0,
+        () => cart?.items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0,
         [cart],
     );
 
@@ -125,7 +126,12 @@ const Cart = () => {
 const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
     const [quantity, setQuantity] = useState(item.quantity);
     const [updating, setUpdating] = useState(false);
-    const product = item.product;
+    
+    // Product details are directly on the item, not nested
+    const productName = item.product_name;
+    const productPrice = item.product_price;
+    const productImage = item.product_image;
+    const productId = item.product;
 
     const updateQuantity = async (newQuantity) => {
         if (newQuantity < 1) return;
@@ -164,8 +170,8 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
     return (
         <article className="surface-card grid gap-4 p-4 sm:grid-cols-[112px_1fr_auto] sm:items-center">
             <div className="aspect-square overflow-hidden rounded-lg bg-[#eef7f4]">
-                {product.image ? (
-                    <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                {productImage ? (
+                    <img src={productImage} alt={productName} className="h-full w-full object-cover" />
                 ) : (
                     <div className="grid h-full place-items-center text-[#115e59]">
                         <Boxes size={32} />
@@ -173,10 +179,10 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
                 )}
             </div>
             <div className="min-w-0">
-                <Link to={`/product/${product.id}`} className="text-lg font-black text-[#17211d] hover:text-[#115e59]">
-                    {product.name}
+                <Link to={`/product/${productId}`} className="text-lg font-black text-[#17211d] hover:text-[#115e59]">
+                    {productName}
                 </Link>
-                <p className="mt-1 text-sm font-semibold text-[#66736d]">{money(product.price)}</p>
+                <p className="mt-1 text-sm font-semibold text-[#66736d]">{money(productPrice)}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     <select
                         value={quantity}
@@ -198,7 +204,8 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
             </div>
             <div className="text-left sm:text-right">
                 <p className="text-xs font-bold uppercase tracking-widest text-[#66736d]">Line Total</p>
-                <p className="mt-1 text-xl font-black text-[#0f766e]">{money(Number(product.price || 0) * Number(item.quantity || 0))}</p>
+                {/* Use line_total from API instead of recalculating */}
+                <p className="mt-1 text-xl font-black text-[#0f766e]">{money(item.line_total || 0)}</p>
             </div>
         </article>
     );
