@@ -46,9 +46,9 @@ const Checkout = () => {
 
         try {
             const response = await initiatePayment({
-                phone_number: phoneNumber,
+                phone: phoneNumber,
                 amount: total,
-                order_id: cart.id,
+                order_id: Number(cart.id),
             });
 
             const checkoutRequestID = response.CheckoutRequestID || response.checkout_request_id;
