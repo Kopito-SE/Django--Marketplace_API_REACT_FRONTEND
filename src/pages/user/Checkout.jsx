@@ -33,8 +33,9 @@ const Checkout = () => {
         fetchCart();
     }, [navigate]);
 
+    // Fix: Use line_total from API instead of recalculating
     const total = useMemo(
-        () => cart?.items?.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0) || 0,
+        () => cart?.items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0,
         [cart],
     );
 
@@ -108,11 +109,13 @@ const Checkout = () => {
                         {cart.items.map((item) => (
                             <div key={item.id} className="flex items-start justify-between gap-4 py-4 first:pt-0">
                                 <div>
-                                    <p className="font-black text-[#17211d]">{item.product.name}</p>
+                                    {/* Fix: Use product_name directly from item, not item.product.name */}
+                                    <p className="font-black text-[#17211d]">{item.product_name}</p>
                                     <p className="mt-1 text-sm font-semibold text-[#66736d]">Quantity {item.quantity}</p>
                                 </div>
+                                {/* Fix: Use line_total from API */}
                                 <p className="shrink-0 font-black text-[#0f766e]">
-                                    {money(Number(item.product.price || 0) * Number(item.quantity || 0))}
+                                    {money(item.line_total || 0)}
                                 </p>
                             </div>
                         ))}

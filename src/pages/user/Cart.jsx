@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Boxes, ShoppingBag, Trash2 } from 'lucide-react';
-import { getCart, removeFromCart, updateCartItem } from '../../api/cartApi';
+import { Boxes, ShoppingBag, Trash2, Trash } from 'lucide-react';
+import { getCart, removeFromCart, updateCartItem, clearCart } from '../../api/cartApi';
 import { useAuth } from '../../hooks/useAuth';
 import { money } from '../../utils/formatters';
 
@@ -10,6 +10,7 @@ const Cart = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [isClearing, setIsClearing] = useState(false);
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
@@ -39,6 +40,26 @@ const Cart = () => {
         () => cart?.items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0,
         [cart],
     );
+
+    const handleClearCart = async () => {
+        if (!confirm('Are you sure you want to remove all items from your cart?')) {
+            return;
+        }
+        
+        setIsClearing(true);
+        setError('');
+        
+        try {
+            await clearCart();
+            setSuccess('Cart cleared successfully.');
+            await fetchCart();
+        } catch (err) {
+            setError('Failed to clear cart.');
+            console.error(err);
+        } finally {
+            setIsClearing(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -74,9 +95,19 @@ const Cart = () => {
                     <p className="eyebrow">Cart</p>
                     <h1 className="section-title mt-1">Shopping Cart</h1>
                 </div>
-                <Link to="/" className="btn btn-ghost w-full sm:w-auto">
-                    Continue Shopping
-                </Link>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={handleClearCart} 
+                        disabled={isClearing}
+                        className="btn btn-ghost w-full sm:w-auto text-[#b42318] hover:text-[#b42318]"
+                    >
+                        <Trash size={16} />
+                        {isClearing ? 'Clearing...' : 'Clear Cart'}
+                    </button>
+                    <Link to="/" className="btn btn-ghost w-full sm:w-auto">
+                        Continue Shopping
+                    </Link>
+                </div>
             </div>
 
             {error && <div className="alert alert-error mb-5">{error}</div>}
@@ -204,7 +235,6 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
             </div>
             <div className="text-left sm:text-right">
                 <p className="text-xs font-bold uppercase tracking-widest text-[#66736d]">Line Total</p>
-                {/* Use line_total from API instead of recalculating */}
                 <p className="mt-1 text-xl font-black text-[#0f766e]">{money(item.line_total || 0)}</p>
             </div>
         </article>
