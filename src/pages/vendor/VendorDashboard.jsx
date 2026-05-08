@@ -9,6 +9,7 @@ const VendorDashboard = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [updating, setUpdating] = useState(null);
 
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
@@ -17,8 +18,14 @@ const VendorDashboard = () => {
                 getVendorOrders(),
                 getVendorStats(),
             ]);
-            setOrders(ordersData.results || ordersData);
+            
+            // Handle paginated response
+            const ordersList = ordersData.results || ordersData || [];
+            setOrders(ordersList);
             setStats(statsData);
+            
+            console.log('Vendor orders loaded:', ordersList.length);
+            console.log('Stats:', statsData);
         } catch (err) {
             setError('Failed to load dashboard data. Make sure the Django API is running.');
             console.error(err);
@@ -34,12 +41,15 @@ const VendorDashboard = () => {
 
     const handleStatusUpdate = async (orderId, newStatus) => {
         setError('');
+        setUpdating(orderId);
         try {
             await updateOrderStatus(orderId, newStatus);
-            fetchDashboardData();
+            await fetchDashboardData(); // Refresh the data
         } catch (err) {
             setError('Failed to update order status.');
             console.error(err);
+        } finally {
+            setUpdating(null);
         }
     };
 
@@ -51,6 +61,13 @@ const VendorDashboard = () => {
             </div>
         );
     }
+
+    // Calculate pending orders from the orders list
+    const pendingOrders = orders.filter(order => 
+        order.payment_status === 'pending' || 
+        order.status === 'pending' || 
+        order.order_status === 'pending'
+    ).length;
 
     return (
         <div className="page-shell">
@@ -74,9 +91,21 @@ const VendorDashboard = () => {
             {error && <div className="alert alert-error mb-5">{error}</div>}
 
             <div className="mb-6 grid gap-4 md:grid-cols-3">
-                <StatCard icon={<DollarSign size={22} />} title="Total Sales" value={money(stats?.total_sales || 0)} />
-                <StatCard icon={<ShoppingBag size={22} />} title="Total Orders" value={stats?.total_orders || orders.length || 0} />
-                <StatCard icon={<ClipboardList size={22} />} title="Pending Orders" value={stats?.pending_orders || 0} />
+                <StatCard 
+                    icon={<DollarSign size={22} />} 
+                    title="Total Revenue" 
+                    value={money(stats?.total_revenue || stats?.total_sales || 0)} 
+                />
+                <StatCard 
+                    icon={<ShoppingBag size={22} />} 
+                    title="Total Orders" 
+                    value={stats?.total_orders || orders.length || 0} 
+                />
+                <StatCard 
+                    icon={<ClipboardList size={22} />} 
+                    title="Pending Orders" 
+                    value={pendingOrders} 
+                />
             </div>
 
             <section className="surface-card overflow-hidden">
@@ -88,6 +117,9 @@ const VendorDashboard = () => {
                 {orders.length === 0 ? (
                     <div className="grid place-items-center px-6 py-14 text-center">
                         <p className="font-bold text-[#66736d]">No vendor orders yet.</p>
+                        <p className="mt-2 text-sm text-[#66736d]">
+                            Once customers place orders for your products, they will appear here.
+                        </p>
                     </div>
                 ) : (
                     <div className="table-scroll">
@@ -96,33 +128,77 @@ const VendorDashboard = () => {
                                 <tr>
                                     <th className="px-5 py-4">Order</th>
                                     <th className="px-5 py-4">Customer</th>
+                                    <th className="px-5 py-4">Items</th>
                                     <th className="px-5 py-4">Amount</th>
+                                    <th className="px-5 py-4">Payment</th>
                                     <th className="px-5 py-4">Status</th>
                                     <th className="px-5 py-4">Date</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#dfe7e2] bg-white">
-                                {orders.map((order) => (
-                                    <tr key={order.id}>
-                                        <td className="px-5 py-4 font-black text-[#17211d]">#{order.id}</td>
-                                        <td className="px-5 py-4 font-semibold text-[#34433d]">{order.customer_name || 'Customer'}</td>
-                                        <td className="px-5 py-4 font-black text-[#0f766e]">{money(order.total_amount)}</td>
-                                        <td className="px-5 py-4">
-                                            <select
-                                                value={order.status}
-                                                onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
-                                                className="form-input !min-h-10 !w-40 !py-2"
-                                            >
-                                                <option value="pending">Pending</option>
-                                                <option value="processing">Processing</option>
-                                                <option value="shipped">Shipped</option>
-                                                <option value="delivered">Delivered</option>
-                                                <option value="cancelled">Cancelled</option>
-                                            </select>
-                                        </td>
-                                        <td className="px-5 py-4 font-semibold text-[#66736d]">{dateLabel(order.created_at)}</td>
-                                    </tr>
-                                ))}
+                                {orders.map((order) => {
+                                    // Get the correct status (priority: order_status > status > payment_status)
+                                    const orderStatus = order.order_status || order.status || 'pending';
+                                    const paymentStatus = order.payment_status || 'pending';
+                                    const isPaid = paymentStatus === 'paid';
+                                    
+                                    return (
+                                        <tr key={order.id}>
+                                            <td className="px-5 py-4 font-black text-[#17211d]">#{order.id}</td>
+                                            <td className="px-5 py-4">
+                                                <div>
+                                                    <p className="font-semibold text-[#34433d]">
+                                                        {order.customer_name || order.user?.username || 'Customer'}
+                                                    </p>
+                                                    {order.phone && (
+                                                        <p className="text-xs text-[#66736d]">{order.phone}</p>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <div className="space-y-1">
+                                                    {order.items?.map((item, idx) => (
+                                                        <div key={idx} className="text-sm">
+                                                            <span className="font-semibold">{item.product_name || item.product?.name}</span>
+                                                            <span className="text-[#66736d]"> x{item.quantity}</span>
+                                                        </div>
+                                                    ))}
+                                                    {(!order.items || order.items.length === 0) && (
+                                                        <span className="text-[#66736d]">-</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 font-black text-[#0f766e]">
+                                                {money(order.total_amount || order.total_price || 0)}
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className={`badge ${isPaid ? 'badge-success' : 'badge-warning'}`}>
+                                                    {isPaid ? 'PAID' : (paymentStatus || 'PENDING').toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <select
+                                                    value={orderStatus}
+                                                    onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
+                                                    disabled={updating === order.id}
+                                                    className="form-input !min-h-10 !w-40 !py-2"
+                                                >
+                                                    <option value="pending">Pending</option>
+                                                    <option value="processing">Processing</option>
+                                                    <option value="shipped">Shipped</option>
+                                                    <option value="delivered">Delivered</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                </select>
+                                                {updating === order.id && (
+                                                    <span className="ml-2 text-xs text-[#66736d]">Updating...</span>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-4 font-semibold text-[#66736d]">
+                                                {dateLabel(order.created_at || order.created_date)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
