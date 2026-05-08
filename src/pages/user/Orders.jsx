@@ -13,7 +13,9 @@ const Orders = () => {
         const fetchOrders = async () => {
             try {
                 const data = await getUserOrders();
-                setOrders(data.results || data);
+                // Handle both paginated and non-paginated responses
+                const ordersList = data.results || data || [];
+                setOrders(ordersList);
             } catch (err) {
                 setError('Failed to load orders. Make sure the Django API is running.');
                 console.error(err);
@@ -72,7 +74,10 @@ const Orders = () => {
 
 const OrderCard = ({ order }) => {
     const [expanded, setExpanded] = useState(false);
-    const status = String(order.status || 'pending').toLowerCase();
+    
+    // Use payment_status or status field
+    const paymentStatus = String(order.payment_status || order.status || 'pending').toLowerCase();
+    const orderStatus = String(order.status || 'pending').toLowerCase();
 
     const getStatusClass = () => {
         const colors = {
@@ -81,9 +86,25 @@ const OrderCard = ({ order }) => {
             shipped: 'badge-info',
             delivered: 'badge-success',
             cancelled: 'badge-danger',
+            paid: 'badge-success',
+            failed: 'badge-danger',
         };
-        return colors[status] || 'badge-info';
+        return colors[paymentStatus] || colors[orderStatus] || 'badge-info';
     };
+
+    const getStatusLabel = () => {
+        if (paymentStatus === 'paid') return 'PAID';
+        if (paymentStatus === 'failed') return 'PAYMENT FAILED';
+        if (orderStatus === 'processing') return 'PROCESSING';
+        if (orderStatus === 'shipped') return 'SHIPPED';
+        if (orderStatus === 'delivered') return 'DELIVERED';
+        if (orderStatus === 'cancelled') return 'CANCELLED';
+        return 'PENDING';
+    };
+
+    // Calculate total from order items if total_amount isn't directly available
+    const totalAmount = order.total_amount || order.total_price || 
+        order.items?.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0) || 0;
 
     return (
         <article className="surface-card overflow-hidden">
@@ -94,13 +115,24 @@ const OrderCard = ({ order }) => {
                     </span>
                     <div>
                         <p className="text-sm font-bold text-[#66736d]">Order #{order.id}</p>
-                        <h2 className="mt-1 text-xl font-black text-[#17211d]">{money(order.total_amount)}</h2>
-                        <p className="mt-1 text-sm font-semibold text-[#66736d]">Placed on {dateLabel(order.created_at)}</p>
+                        <h2 className="mt-1 text-xl font-black text-[#17211d]">{money(totalAmount)}</h2>
+                        <p className="mt-1 text-sm font-semibold text-[#66736d]">
+                            Placed on {dateLabel(order.created_at || order.created_date)}
+                        </p>
+                        {order.transaction_id && (
+                            <p className="mt-1 text-xs font-semibold text-[#66736d]">
+                            Transaction: {order.transaction_id}
+                            </p>
+                        )}
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                    <span className={`badge ${getStatusClass()}`}>{status.toUpperCase()}</span>
-                    <button type="button" onClick={() => setExpanded((value) => !value)} className="btn btn-ghost !min-h-10 text-sm">
+                    <span className={`badge ${getStatusClass()}`}>{getStatusLabel()}</span>
+                    <button 
+                        type="button" 
+                        onClick={() => setExpanded((value) => !value)} 
+                        className="btn btn-ghost !min-h-10 text-sm"
+                    >
                         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         {expanded ? 'Hide Details' : 'Show Details'}
                     </button>
@@ -114,10 +146,17 @@ const OrderCard = ({ order }) => {
                         {order.items?.map((item) => (
                             <div key={item.id} className="flex items-center justify-between gap-4 rounded-lg bg-white p-3">
                                 <div>
-                                    <p className="font-bold text-[#17211d]">{item.product_name}</p>
-                                    <p className="text-sm font-semibold text-[#66736d]">Quantity {item.quantity}</p>
+                                    <p className="font-bold text-[#17211d]">{item.product_name || item.product?.name}</p>
+                                    <p className="text-sm font-semibold text-[#66736d]">
+                                        Quantity: {item.quantity}
+                                    </p>
+                                    <p className="text-xs text-[#66736d]">
+                                        @ {money(item.price || item.unit_price)}
+                                    </p>
                                 </div>
-                                <span className="font-black text-[#0f766e]">{money(item.price)}</span>
+                                <span className="font-black text-[#0f766e]">
+                                    {money((item.price || item.unit_price || 0) * (item.quantity || 0))}
+                                </span>
                             </div>
                         ))}
                     </div>
@@ -126,6 +165,20 @@ const OrderCard = ({ order }) => {
                         <div className="mt-4 rounded-lg border border-[#dfe7e2] bg-white p-4 text-sm">
                             <span className="font-black text-[#17211d]">Tracking Number: </span>
                             <span className="font-semibold text-[#66736d]">{order.tracking_number}</span>
+                        </div>
+                    )}
+
+                    {order.shipping_address && (
+                        <div className="mt-4 rounded-lg border border-[#dfe7e2] bg-white p-4 text-sm">
+                            <span className="font-black text-[#17211d]">Shipping Address: </span>
+                            <span className="font-semibold text-[#66736d]">{order.shipping_address}</span>
+                        </div>
+                    )}
+
+                    {order.payment_status === 'failed' && order.failure_reason && (
+                        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm">
+                            <span className="font-black text-[#b42318]">Payment Failed: </span>
+                            <span className="font-semibold text-[#b42318]">{order.failure_reason}</span>
                         </div>
                     )}
                 </div>
