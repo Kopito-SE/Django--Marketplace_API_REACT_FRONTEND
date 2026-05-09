@@ -20,12 +20,31 @@ const VendorDashboard = () => {
             ]);
             
             // Handle paginated response
-            const ordersList = ordersData.results || ordersData || [];
-            setOrders(ordersList);
+            let ordersList = ordersData.results || ordersData || [];
+            
+            // Filter out duplicate orders by ID (since your data has duplicate IDs)
+            const uniqueOrders = [];
+            const seenIds = new Set();
+            
+            for (const order of ordersList) {
+                if (!seenIds.has(order.id)) {
+                    seenIds.add(order.id);
+                    uniqueOrders.push(order);
+                }
+            }
+            
+            // Sort by created_at (newest first)
+            const sortedOrders = [...uniqueOrders].sort((a, b) => {
+                const dateA = new Date(a.created_at);
+                const dateB = new Date(b.created_at);
+                return dateB - dateA;
+            });
+            
+            setOrders(sortedOrders);
             setStats(statsData);
             
-            console.log('Vendor orders loaded:', ordersList.length);
-            console.log('Stats:', statsData);
+            console.log('Vendor orders loaded:', sortedOrders.length);
+            console.log('First order:', sortedOrders[0]);
         } catch (err) {
             setError('Failed to load dashboard data. Make sure the Django API is running.');
             console.error(err);
@@ -35,8 +54,7 @@ const VendorDashboard = () => {
     }, []);
 
     useEffect(() => {
-        const timeout = setTimeout(fetchDashboardData, 0);
-        return () => clearTimeout(timeout);
+        fetchDashboardData();
     }, [fetchDashboardData]);
 
     const handleStatusUpdate = async (orderId, newStatus) => {
@@ -66,8 +84,15 @@ const VendorDashboard = () => {
     const pendingOrders = orders.filter(order => 
         order.payment_status === 'pending' || 
         order.status === 'pending' || 
-        order.order_status === 'pending'
+        order.order_status === 'pending' ||
+        order.status?.toLowerCase() === 'pending'
     ).length;
+
+    // Calculate total revenue from orders
+    const totalRevenue = orders.reduce((sum, order) => {
+        const amount = parseFloat(order.total_price || order.total_amount || 0);
+        return sum + amount;
+    }, 0);
 
     return (
         <div className="page-shell">
@@ -94,12 +119,12 @@ const VendorDashboard = () => {
                 <StatCard 
                     icon={<DollarSign size={22} />} 
                     title="Total Revenue" 
-                    value={money(stats?.total_revenue || stats?.total_sales || 0)} 
+                    value={money(totalRevenue)} 
                 />
                 <StatCard 
                     icon={<ShoppingBag size={22} />} 
                     title="Total Orders" 
-                    value={stats?.total_orders || orders.length || 0} 
+                    value={orders.length} 
                 />
                 <StatCard 
                     icon={<ClipboardList size={22} />} 
@@ -137,18 +162,27 @@ const VendorDashboard = () => {
                             </thead>
                             <tbody className="divide-y divide-[#dfe7e2] bg-white">
                                 {orders.map((order) => {
-                                    // Get the correct status (priority: order_status > status > payment_status)
-                                    const orderStatus = order.order_status || order.status || 'pending';
-                                    const paymentStatus = order.payment_status || 'pending';
+                                    // Get the correct status
+                                    const orderStatus = order.status || order.order_status || 'pending';
+                                    const paymentStatus = order.payment_status || 
+                                                        (order.items?.[0]?.payment) || 
+                                                        'pending';
                                     const isPaid = paymentStatus === 'paid';
+                                    
+                                    // Get customer info (from your data structure)
+                                    const customerName = order.customer_name || 
+                                                        order.user?.username || 
+                                                        `Customer #${order.user?.id || 'Unknown'}`;
                                     
                                     return (
                                         <tr key={order.id}>
-                                            <td className="px-5 py-4 font-black text-[#17211d]">#{order.id}</td>
+                                            <td className="px-5 py-4 font-black text-[#17211d]">
+                                                #{order.id}
+                                            </td>
                                             <td className="px-5 py-4">
                                                 <div>
                                                     <p className="font-semibold text-[#34433d]">
-                                                        {order.customer_name || order.user?.username || 'Customer'}
+                                                        {customerName}
                                                     </p>
                                                     {order.phone && (
                                                         <p className="text-xs text-[#66736d]">{order.phone}</p>
@@ -157,19 +191,29 @@ const VendorDashboard = () => {
                                             </td>
                                             <td className="px-5 py-4">
                                                 <div className="space-y-1">
-                                                    {order.items?.map((item, idx) => (
-                                                        <div key={idx} className="text-sm">
-                                                            <span className="font-semibold">{item.product_name || item.product?.name}</span>
-                                                            <span className="text-[#66736d]"> x{item.quantity}</span>
-                                                        </div>
-                                                    ))}
-                                                    {(!order.items || order.items.length === 0) && (
-                                                        <span className="text-[#66736d]">-</span>
+                                                    {order.items && order.items.length > 0 ? (
+                                                        order.items.map((item, idx) => (
+                                                            <div key={idx} className="text-sm">
+                                                                <span className="font-semibold">
+                                                                    {item.product_name || item.product?.name}
+                                                                </span>
+                                                                <span className="text-[#66736d]">
+                                                                    {' '}x{item.quantity}
+                                                                </span>
+                                                                {item.price && (
+                                                                    <span className="text-[#66736d] ml-2">
+                                                                        @ {money(parseFloat(item.price))}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-[#66736d]">No items</span>
                                                     )}
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4 font-black text-[#0f766e]">
-                                                {money(order.total_amount || order.total_price || 0)}
+                                                {money(parseFloat(order.total_price || order.total_amount || 0))}
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span className={`badge ${isPaid ? 'badge-success' : 'badge-warning'}`}>
@@ -194,7 +238,7 @@ const VendorDashboard = () => {
                                                 )}
                                             </td>
                                             <td className="px-5 py-4 font-semibold text-[#66736d]">
-                                                {dateLabel(order.created_at || order.created_date)}
+                                                {dateLabel(order.created_at)}
                                             </td>
                                         </tr>
                                     );
