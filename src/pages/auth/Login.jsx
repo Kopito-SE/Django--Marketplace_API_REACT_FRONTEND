@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, LogIn, Mail, Store } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { GoogleLogin } from "@react-oauth/google";
+import axios from "axios";
 
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
@@ -24,6 +27,40 @@ const Login = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+    setGoogleLoading(true);
+    setError('');
+    
+    try {
+        const res = await axios.post(
+            "http://127.0.0.1:8000/api/auth/google/",
+            { token: credentialResponse.credential },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        console.log("Google login response:", res.data);
+
+        
+        
+        localStorage.setItem('access_token', res.data.access);  // ← Same as email login
+        localStorage.setItem('refresh_token', res.data.refresh); // ← Same as email login
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        
+        // Force a hard reload to ensure auth context picks up the change
+        window.location.href = '/';
+        
+    } catch (err) {
+        console.error("Google login error:", err);
+        setError(err.response?.data?.error || 'Google login failed. Please try again.');
+        setGoogleLoading(false);
+    }
+};
+    const handleGoogleError = () => {
+        console.error("Google login failed");
+        setError('Google login failed. Please try again.');
+        setGoogleLoading(false);
     };
 
     return (
@@ -85,6 +122,40 @@ const Login = () => {
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </button>
                         </form>
+
+                        {/* Divider */}
+                        <div className="relative my-6">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="bg-white px-2 text-[#66736d]">Or continue with</span>
+                            </div>
+                        </div>
+
+                        {/* Google Login Button */}
+                        <div className="flex justify-center">
+                            {googleLoading ? (
+                                <button 
+                                    disabled 
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700"
+                                >
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700"></div>
+                                    Connecting...
+                                </button>
+                            ) : (
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={handleGoogleError}
+                                    useOneTap={false}
+                                    theme="outline"
+                                    size="large"
+                                    width="100%"
+                                    text="continue_with"
+                                    shape="rectangular"
+                                />
+                            )}
+                        </div>
 
                         <p className="mt-6 text-center text-sm font-semibold text-[#66736d]">
                             Do not have an account?{' '}

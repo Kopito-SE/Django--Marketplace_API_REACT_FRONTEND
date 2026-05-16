@@ -28,6 +28,16 @@ export const login = async (email, password) => {
     return response.data;
 };
 
+export const googleLogin = async (token) => {
+    const response = await axiosInstance.post('/auth/google/', { token });
+    if (response.data.access) {
+        localStorage.setItem('access_token', response.data.access);
+        localStorage.setItem('refresh_token', response.data.refresh);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+};
+
 export const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
