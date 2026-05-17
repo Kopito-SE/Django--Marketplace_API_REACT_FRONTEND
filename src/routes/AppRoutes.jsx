@@ -57,7 +57,9 @@ const AppRoutes = () => {
                 <Route path="/product/:id" element={<ProductDetail />} />
                 
                 {/* User Routes */}
-                <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
+                {/* REMOVED PrivateRoute from Cart - now accessible to everyone */}
+                <Route path="/cart" element={<Cart />} />
+                {/* Keep these protected as they require user data */}
                 <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
                 <Route path="/payment-status" element={<PrivateRoute><PaymentStatus /></PrivateRoute>} />
                 <Route path="/orders" element={<PrivateRoute><Orders /></PrivateRoute>} />

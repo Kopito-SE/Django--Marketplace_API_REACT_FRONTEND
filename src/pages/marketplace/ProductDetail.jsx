@@ -5,10 +5,10 @@ import { addToCart } from '../../api/cartApi';
 import { getProductDetails } from '../../api/productApi';
 import { createReview, getProductReviews } from '../../api/reviewApi';
 import { useAuth } from '../../hooks/useAuth';
-import { useProductDetails } from '../../hooks/useProductDetails'; // NEW: Import the React Query hook
+import { useProductDetails } from '../../hooks/useProductDetails';
 import { demoProducts } from '../../data/demoProducts';
 import { dateLabel, money } from '../../utils/formatters';
-
+import { addToGuestCart } from '../../utils/guestCart';
 
 const sampleReviews = [
     {
@@ -32,7 +32,6 @@ const ProductDetail = () => {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
     
-    // REPLACE the old product state with React Query
     const { data: product, isLoading: productLoading, error: productError } = useProductDetails(id);
     
     const [reviews, setReviews] = useState([]);
@@ -45,7 +44,6 @@ const ProductDetail = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    // Keep the reviews fetching as-is (or upgrade later)
     useEffect(() => {
         const fetchReviews = async () => {
             try {
@@ -60,13 +58,11 @@ const ProductDetail = () => {
         fetchReviews();
     }, [id]);
 
-    // Handle preview mode when API fails
     useEffect(() => {
         if (productError) {
             const fallback = demoProducts.find((item) => String(item.id) === String(id));
             if (fallback) {
                 setPreviewMode(true);
-                // Note: product stays as undefined, but we'll show fallback in render
             }
         } else if (product) {
             setPreviewMode(false);
@@ -74,37 +70,48 @@ const ProductDetail = () => {
     }, [product, productError, id]);
 
     const maxStock = useMemo(() => {
-        // Use product from React Query or fallback to demo product
         const currentProduct = product || demoProducts.find((item) => String(item.id) === String(id));
         return Math.max(0, Number(currentProduct?.stock || 0));
     }, [product, id]);
 
-    const handleAddToCart = async () => {
+    
+const handleAddToCart = async () => {
+    if (previewMode || !product) {
+        setSuccess('Preview product selected. Connect the Django API to add real items to cart.');
+        setTimeout(() => setSuccess(''), 3500);
+        return;
+    }
+
+    setAddingToCart(true);
+    setError('');
+    
+    try {
         if (!isAuthenticated) {
-            navigate('/login');
-            return;
-        }
-
-        if (previewMode || !product) {
-            setSuccess('Preview product selected. Connect the Django API to add real items to cart.');
-            setTimeout(() => setSuccess(''), 3500);
-            return;
-        }
-
-        setAddingToCart(true);
-        setError('');
-        try {
+            // Guest user - store in localStorage
+            const productData = {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image: product.image
+            };
+            addToGuestCart(productData, quantity);
+            setSuccess('Product added to guest cart.');
+        } else {
+            // Authenticated user - use API
             await addToCart(product.id, quantity);
             setSuccess('Product added to cart.');
-            setTimeout(() => setSuccess(''), 3000);
-        } catch {
-            setError('Failed to add to cart.');
-            setTimeout(() => setError(''), 3000);
-        } finally {
-            setAddingToCart(false);
         }
-    };
+        setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+        console.error('Add to cart error:', err);
+        setError('Failed to add to cart.');
+        setTimeout(() => setError(''), 3000);
+    } finally {
+        setAddingToCart(false);
+    }
+};
 
+    // Keep authentication for reviews (since that should still require login)
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         if (!isAuthenticated) {
@@ -148,7 +155,6 @@ const ProductDetail = () => {
         }
     };
 
-    // Loading state
     if (productLoading) {
         return (
             <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
@@ -158,7 +164,6 @@ const ProductDetail = () => {
         );
     }
 
-    // Show actual product from API or fallback to demo
     const displayProduct = product || demoProducts.find((item) => String(item.id) === String(id));
     const displayError = productError && !displayProduct ? 'Failed to load product from API. Showing demo data.' : null;
 
@@ -278,7 +283,6 @@ const ProductDetail = () => {
                 </div>
             </section>
 
-            
             <section className="mt-9 grid gap-6 lg:grid-cols-[0.82fr_1.18fr]">
                 <form onSubmit={handleSubmitReview} className="surface-card p-6">
                     <p className="eyebrow">Reviews</p>

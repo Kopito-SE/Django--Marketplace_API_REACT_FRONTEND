@@ -34,12 +34,18 @@ const Navbar = () => {
         navigate('/login');
     };
 
-    const authLinks = (
+    // Common links for both authenticated and guest users
+    const commonLinks = (
         <>
             <NavLink to="/cart" className={navClass} onClick={closeMenu}>
                 <ShoppingCart size={16} />
                 Cart
             </NavLink>
+        </>
+    );
+
+    const authLinks = (
+        <>
             <NavLink to="/orders" className={navClass} onClick={closeMenu}>
                 <ShoppingBag size={16} />
                 Orders
@@ -88,6 +94,8 @@ const Navbar = () => {
                         <Search size={16} />
                         Marketplace
                     </NavLink>
+                    {/* Cart is now visible to everyone */}
+                    {commonLinks}
                     {isAuthenticated ? authLinks : guestLinks}
                 </nav>
 
@@ -109,16 +117,43 @@ const Navbar = () => {
                             <Search size={16} />
                             Marketplace
                         </NavLink>
+                        {/* Cart in mobile menu - visible to everyone */}
+                        <NavLink to="/cart" className={navClass} onClick={closeMenu}>
+                            <ShoppingCart size={16} />
+                            Cart
+                        </NavLink>
                         {isAuthenticated ? (
                             <>
-                                {authLinks}
+                                <NavLink to="/orders" className={navClass} onClick={closeMenu}>
+                                    <ShoppingBag size={16} />
+                                    Orders
+                                </NavLink>
+                                <NavLink to="/profile" className={navClass} onClick={closeMenu}>
+                                    <User size={16} />
+                                    Profile
+                                </NavLink>
+                                <NavLink to="/vendor/dashboard" className={navClass} onClick={closeMenu}>
+                                    <LayoutDashboard size={16} />
+                                    Vendor
+                                </NavLink>
                                 <NavLink to="/vendor/products/create" className={navClass} onClick={closeMenu}>
                                     <PackagePlus size={16} />
                                     Add Product
                                 </NavLink>
+                                <button type="button" onClick={handleLogout} className="btn btn-ghost !min-h-10 !px-3 text-sm">
+                                    <LogOut size={16} />
+                                    Logout
+                                </button>
                             </>
                         ) : (
-                            guestLinks
+                            <>
+                                <NavLink to="/login" className={navClass} onClick={closeMenu}>
+                                    Login
+                                </NavLink>
+                                <Link to="/register" onClick={closeMenu} className="btn btn-primary !min-h-10 !px-4 text-sm text-center">
+                                    Create Account
+                                </Link>
+                            </>
                         )}
                     </nav>
                 </div>

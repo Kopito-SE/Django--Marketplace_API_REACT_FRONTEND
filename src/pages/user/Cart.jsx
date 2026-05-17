@@ -1,9 +1,11 @@
+// src/pages/user/Cart.jsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Boxes, ShoppingBag, Trash2, Trash } from 'lucide-react';
 import { getCart, removeFromCart, updateCartItem, clearCart } from '../../api/cartApi';
 import { useAuth } from '../../hooks/useAuth';
 import { money } from '../../utils/formatters';
+import { getGuestCart, saveGuestCart, removeFromGuestCart, updateGuestCartItem, clearGuestCart } from '../../utils/guestCart';
 
 const Cart = () => {
     const [cart, setCart] = useState(null);
@@ -16,30 +18,41 @@ const Cart = () => {
 
     const fetchCart = useCallback(async () => {
         setLoading(true);
+        setError('');
+        
         try {
-            const data = await getCart();
-            setCart(data);
+            if (isAuthenticated) {
+                // Authenticated user - fetch from API
+                const data = await getCart();
+                setCart(data);
+            } else {
+                // Guest user - load from localStorage
+                const guestCart = getGuestCart();
+                setCart(guestCart);
+                if (guestCart.items.length === 0) {
+                    // Don't show error for empty guest cart
+                    setError('');
+                }
+            }
         } catch (err) {
-            setError('Failed to load cart. Make sure the Django API is running.');
-            console.error(err);
+            console.error('Failed to load cart:', err);
+            // Fallback to guest cart if API fails
+            const guestCart = getGuestCart();
+            setCart(guestCart);
+            setError('Failed to load cart from server. Using locally saved cart.');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isAuthenticated]);
 
     useEffect(() => {
-        if (isAuthenticated) {
-            const timeout = setTimeout(fetchCart, 0);
-            return () => clearTimeout(timeout);
-        }
-        return undefined;
-    }, [fetchCart, isAuthenticated]);
+        fetchCart();
+    }, [fetchCart]);
 
-    // Use line_total from API instead of recalculating
-    const total = useMemo(
-        () => cart?.items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0,
-        [cart],
-    );
+    const total = useMemo(() => {
+        if (!cart?.items) return 0;
+        return cart.items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+    }, [cart]);
 
     const handleClearCart = async () => {
         if (!confirm('Are you sure you want to remove all items from your cart?')) {
@@ -50,14 +63,20 @@ const Cart = () => {
         setError('');
         
         try {
-            await clearCart();
-            setSuccess('Cart cleared successfully.');
+            if (isAuthenticated) {
+                await clearCart();
+                setSuccess('Cart cleared successfully.');
+            } else {
+                clearGuestCart();
+                setSuccess('Cart cleared successfully.');
+            }
             await fetchCart();
         } catch (err) {
             setError('Failed to clear cart.');
             console.error(err);
         } finally {
             setIsClearing(false);
+            setTimeout(() => setSuccess(''), 3000);
         }
     };
 
@@ -94,6 +113,11 @@ const Cart = () => {
                 <div>
                     <p className="eyebrow">Cart</p>
                     <h1 className="section-title mt-1">Shopping Cart</h1>
+                    {!isAuthenticated && (
+                        <p className="text-sm text-[#66736d] mt-2">
+                            You're shopping as a guest. <Link to="/login" className="text-[#115e59] underline">Log in</Link> to save your cart.
+                        </p>
+                    )}
                 </div>
                 <div className="flex gap-3">
                     <button 
@@ -119,6 +143,7 @@ const Cart = () => {
                         <CartItem
                             key={item.id}
                             item={item}
+                            isAuthenticated={isAuthenticated}
                             onUpdate={fetchCart}
                             onError={setError}
                             onSuccess={setSuccess}
@@ -145,7 +170,19 @@ const Cart = () => {
                             </div>
                         </div>
                     </div>
-                    <button type="button" onClick={() => navigate('/checkout')} className="btn btn-primary mt-6 w-full">
+                    <button 
+                        type="button" 
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                if (confirm('Please log in to proceed to checkout. Would you like to log in now?')) {
+                                    navigate('/login');
+                                }
+                            } else {
+                                navigate('/checkout');
+                            }
+                        }} 
+                        className="btn btn-primary mt-6 w-full"
+                    >
                         Proceed to Checkout
                     </button>
                 </aside>
@@ -154,15 +191,14 @@ const Cart = () => {
     );
 };
 
-const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
+const CartItem = ({ item, isAuthenticated, onUpdate, onError, onSuccess }) => {
     const [quantity, setQuantity] = useState(item.quantity);
     const [updating, setUpdating] = useState(false);
     
-    // Product details are directly on the item, not nested
-    const productName = item.product_name;
-    const productPrice = item.product_price;
-    const productImage = item.product_image;
-    const productId = item.product;
+    const productName = item.product_name || item.product?.name;
+    const productPrice = item.product_price || item.product?.price;
+    const productImage = item.product_image || item.product?.image;
+    const productId = item.product_id || item.product?.id;
 
     const updateQuantity = async (newQuantity) => {
         if (newQuantity < 1) return;
@@ -170,7 +206,11 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
         onError('');
 
         try {
-            await updateCartItem(item.id, newQuantity);
+            if (isAuthenticated) {
+                await updateCartItem(item.id, newQuantity);
+            } else {
+                updateGuestCartItem(item.id, newQuantity);
+            }
             setQuantity(newQuantity);
             onSuccess('Cart updated.');
             await onUpdate();
@@ -179,6 +219,7 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
             console.error(err);
         } finally {
             setUpdating(false);
+            setTimeout(() => onSuccess(''), 3000);
         }
     };
 
@@ -187,7 +228,11 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
         onError('');
 
         try {
-            await removeFromCart(item.id);
+            if (isAuthenticated) {
+                await removeFromCart(item.id);
+            } else {
+                removeFromGuestCart(item.id);
+            }
             onSuccess('Item removed from cart.');
             await onUpdate();
         } catch (err) {
@@ -195,6 +240,7 @@ const CartItem = ({ item, onUpdate, onError, onSuccess }) => {
             console.error(err);
         } finally {
             setUpdating(false);
+            setTimeout(() => onSuccess(''), 3000);
         }
     };
 
