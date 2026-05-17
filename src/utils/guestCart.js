@@ -8,7 +8,6 @@ export const getGuestCart = () => {
     }
     try {
         const cart = JSON.parse(saved);
-        // Recalculate total to ensure accuracy
         cart.total = cart.items.reduce((sum, item) => sum + (item.line_total || 0), 0);
         return cart;
     } catch (e) {
@@ -17,9 +16,10 @@ export const getGuestCart = () => {
 };
 
 export const saveGuestCart = (cart) => {
-    // Recalculate total
     cart.total = cart.items.reduce((sum, item) => sum + (item.line_total || 0), 0);
     localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
+    // Dispatch storage event to notify other components
+    window.dispatchEvent(new Event('storage'));
     return cart;
 };
 
@@ -32,7 +32,7 @@ export const addToGuestCart = (product, quantity) => {
         existingItem.line_total = existingItem.product_price * existingItem.quantity;
     } else {
         cart.items.push({
-            id: Date.now(), // temporary unique ID
+            id: Date.now(),
             product_id: product.id,
             product_name: product.name,
             product_price: product.price,
@@ -66,6 +66,7 @@ export const updateGuestCartItem = (itemId, quantity) => {
 
 export const clearGuestCart = () => {
     localStorage.removeItem(GUEST_CART_KEY);
+    window.dispatchEvent(new Event('storage'));
     return { items: [], total: 0 };
 };
 
@@ -74,9 +75,6 @@ export const mergeGuestCartWithUser = async (userId) => {
     if (guestCart.items.length === 0) {
         return null;
     }
-    
-    // You can send this to your backend to merge
-    // For now, just clear guest cart
     clearGuestCart();
     return guestCart;
 };

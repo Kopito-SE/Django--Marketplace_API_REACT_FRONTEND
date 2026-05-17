@@ -5,6 +5,7 @@ import { addToCart } from '../../api/cartApi';
 import { getProductDetails } from '../../api/productApi';
 import { createReview, getProductReviews } from '../../api/reviewApi';
 import { useAuth } from '../../hooks/useAuth';
+import { useCart } from '../../context/CartContext';
 import { useProductDetails } from '../../hooks/useProductDetails';
 import { demoProducts } from '../../data/demoProducts';
 import { dateLabel, money } from '../../utils/formatters';
@@ -31,6 +32,7 @@ const ProductDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { isAuthenticated } = useAuth();
+    const { refreshCart } = useCart();
     
     const { data: product, isLoading: productLoading, error: productError } = useProductDetails(id);
     
@@ -74,44 +76,41 @@ const ProductDetail = () => {
         return Math.max(0, Number(currentProduct?.stock || 0));
     }, [product, id]);
 
-    
-const handleAddToCart = async () => {
-    if (previewMode || !product) {
-        setSuccess('Preview product selected. Connect the Django API to add real items to cart.');
-        setTimeout(() => setSuccess(''), 3500);
-        return;
-    }
-
-    setAddingToCart(true);
-    setError('');
-    
-    try {
-        if (!isAuthenticated) {
-            // Guest user - store in localStorage
-            const productData = {
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                image: product.image
-            };
-            addToGuestCart(productData, quantity);
-            setSuccess('Product added to guest cart.');
-        } else {
-            // Authenticated user - use API
-            await addToCart(product.id, quantity);
-            setSuccess('Product added to cart.');
+    const handleAddToCart = async () => {
+        if (previewMode || !product) {
+            setSuccess('Preview product selected. Connect the Django API to add real items to cart.');
+            setTimeout(() => setSuccess(''), 3500);
+            return;
         }
-        setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-        console.error('Add to cart error:', err);
-        setError('Failed to add to cart.');
-        setTimeout(() => setError(''), 3000);
-    } finally {
-        setAddingToCart(false);
-    }
-};
 
-    // Keep authentication for reviews (since that should still require login)
+        setAddingToCart(true);
+        setError('');
+        
+        try {
+            if (!isAuthenticated) {
+                const productData = {
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image: product.image
+                };
+                addToGuestCart(productData, quantity);
+                setSuccess('Product added to guest cart.');
+            } else {
+                await addToCart(product.id, quantity);
+                setSuccess('Product added to cart.');
+            }
+            refreshCart();
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            console.error('Add to cart error:', err);
+            setError('Failed to add to cart.');
+            setTimeout(() => setError(''), 3000);
+        } finally {
+            setAddingToCart(false);
+        }
+    };
+
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         if (!isAuthenticated) {

@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +14,7 @@ import {
     X,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useCart } from '../../context/CartContext';
 
 const navClass = ({ isActive }) =>
     `inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition ${
@@ -23,6 +25,7 @@ const navClass = ({ isActive }) =>
 
 const Navbar = () => {
     const { isAuthenticated, logout } = useAuth();
+    const { itemCount } = useCart(); // Get cart item count
     const navigate = useNavigate();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -34,11 +37,17 @@ const Navbar = () => {
         navigate('/login');
     };
 
-    // Common links for both authenticated and guest users
     const commonLinks = (
         <>
             <NavLink to="/cart" className={navClass} onClick={closeMenu}>
-                <ShoppingCart size={16} />
+                <div className="relative">
+                    <ShoppingCart size={16} />
+                    {itemCount > 0 && (
+                        <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#b42318] text-[10px] font-bold text-white">
+                            {itemCount > 9 ? '9+' : itemCount}
+                        </span>
+                    )}
+                </div>
                 Cart
             </NavLink>
         </>
@@ -94,7 +103,6 @@ const Navbar = () => {
                         <Search size={16} />
                         Marketplace
                     </NavLink>
-                    {/* Cart is now visible to everyone */}
                     {commonLinks}
                     {isAuthenticated ? authLinks : guestLinks}
                 </nav>
@@ -117,9 +125,15 @@ const Navbar = () => {
                             <Search size={16} />
                             Marketplace
                         </NavLink>
-                        {/* Cart in mobile menu - visible to everyone */}
                         <NavLink to="/cart" className={navClass} onClick={closeMenu}>
-                            <ShoppingCart size={16} />
+                            <div className="relative">
+                                <ShoppingCart size={16} />
+                                {itemCount > 0 && (
+                                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#b42318] text-[10px] font-bold text-white">
+                                        {itemCount > 9 ? '9+' : itemCount}
+                                    </span>
+                                )}
+                            </div>
                             Cart
                         </NavLink>
                         {isAuthenticated ? (

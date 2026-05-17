@@ -1,11 +1,11 @@
-// src/pages/user/Cart.jsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Boxes, ShoppingBag, Trash2, Trash } from 'lucide-react';
 import { getCart, removeFromCart, updateCartItem, clearCart } from '../../api/cartApi';
 import { useAuth } from '../../hooks/useAuth';
+import { useCart } from '../../context/CartContext';
 import { money } from '../../utils/formatters';
-import { getGuestCart, saveGuestCart, removeFromGuestCart, updateGuestCartItem, clearGuestCart } from '../../utils/guestCart';
+import { getGuestCart, removeFromGuestCart, updateGuestCartItem, clearGuestCart } from '../../utils/guestCart';
 
 const Cart = () => {
     const [cart, setCart] = useState(null);
@@ -14,6 +14,7 @@ const Cart = () => {
     const [success, setSuccess] = useState('');
     const [isClearing, setIsClearing] = useState(false);
     const { isAuthenticated } = useAuth();
+    const { refreshCart } = useCart();
     const navigate = useNavigate();
 
     const fetchCart = useCallback(async () => {
@@ -22,21 +23,17 @@ const Cart = () => {
         
         try {
             if (isAuthenticated) {
-                // Authenticated user - fetch from API
                 const data = await getCart();
                 setCart(data);
             } else {
-                // Guest user - load from localStorage
                 const guestCart = getGuestCart();
                 setCart(guestCart);
                 if (guestCart.items.length === 0) {
-                    // Don't show error for empty guest cart
                     setError('');
                 }
             }
         } catch (err) {
             console.error('Failed to load cart:', err);
-            // Fallback to guest cart if API fails
             const guestCart = getGuestCart();
             setCart(guestCart);
             setError('Failed to load cart from server. Using locally saved cart.');
@@ -71,6 +68,7 @@ const Cart = () => {
                 setSuccess('Cart cleared successfully.');
             }
             await fetchCart();
+            refreshCart();
         } catch (err) {
             setError('Failed to clear cart.');
             console.error(err);
@@ -145,6 +143,7 @@ const Cart = () => {
                             item={item}
                             isAuthenticated={isAuthenticated}
                             onUpdate={fetchCart}
+                            onRefreshCart={refreshCart}
                             onError={setError}
                             onSuccess={setSuccess}
                         />
@@ -191,7 +190,7 @@ const Cart = () => {
     );
 };
 
-const CartItem = ({ item, isAuthenticated, onUpdate, onError, onSuccess }) => {
+const CartItem = ({ item, isAuthenticated, onUpdate, onRefreshCart, onError, onSuccess }) => {
     const [quantity, setQuantity] = useState(item.quantity);
     const [updating, setUpdating] = useState(false);
     
@@ -214,6 +213,7 @@ const CartItem = ({ item, isAuthenticated, onUpdate, onError, onSuccess }) => {
             setQuantity(newQuantity);
             onSuccess('Cart updated.');
             await onUpdate();
+            onRefreshCart();
         } catch (err) {
             onError('Failed to update quantity.');
             console.error(err);
@@ -235,6 +235,7 @@ const CartItem = ({ item, isAuthenticated, onUpdate, onError, onSuccess }) => {
             }
             onSuccess('Item removed from cart.');
             await onUpdate();
+            onRefreshCart();
         } catch (err) {
             onError('Failed to remove item.');
             console.error(err);
