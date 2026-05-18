@@ -4,6 +4,9 @@ import { Lock, LogIn, Mail, Store } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
+import { getPendingMergeCart, clearPendingMergeCart } from '../../utils/guestCart';
+import { mergeGuestCart } from '../../api/cartApi';
+import { useCart } from '../../context/CartContext';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -12,7 +15,33 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const { login } = useAuth();
+    const { refreshCart } = useCart();
     const navigate = useNavigate();
+
+    // Helper function to merge guest cart after successful authentication
+    const mergeGuestCartAfterLogin = async () => {
+        const pendingItems = getPendingMergeCart();
+        console.log('Pending items for merge:', pendingItems);
+        
+        if (pendingItems && pendingItems.length > 0) {
+            try {
+                // Wait a bit to ensure token is properly set
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                console.log('Attempting to merge cart with items:', pendingItems);
+                const result = await mergeGuestCart(pendingItems);
+                console.log('Merge successful:', result);
+                clearPendingMergeCart();
+                await refreshCart();
+                return true;
+            } catch (error) {
+                console.error('Failed to merge guest cart:', error);
+                console.error('Error response:', error.response?.data);
+                return false;
+            }
+        }
+        return false;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -21,7 +50,14 @@ const Login = () => {
 
         try {
             await login(email, password);
-            navigate('/');
+            
+            // Merge guest cart after login
+            await mergeGuestCartAfterLogin();
+            
+            // Check for return URL or default to home
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get('returnUrl');
+            navigate(returnUrl || '/');
         } catch (err) {
             setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
         } finally {
@@ -30,33 +66,45 @@ const Login = () => {
     };
 
     const handleGoogleSuccess = async (credentialResponse) => {
-    setGoogleLoading(true);
-    setError('');
+        setGoogleLoading(true);
+        setError('');
+        
+        try {
+            const res = await axios.post(
+                "http://127.0.0.1:8000/api/auth/google/",
+                { token: credentialResponse.credential },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            console.log("Google login response:", res.data);
+            
+            localStorage.setItem('access_token', res.data.access);
+            localStorage.setItem('refresh_token', res.data.refresh);
+            localStorage.setItem('user', JSON.stringify(res.data.user));
+            
+            // Wait a bit for the token to be available
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Merge guest cart after Google login
+            await mergeGuestCartAfterLogin();
+            
+            // Check for return URL
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get('returnUrl');
+            
+            if (returnUrl === '/checkout') {
+                window.location.href = returnUrl;
+            } else {
+                window.location.href = '/';
+            }
+            
+        } catch (err) {
+            console.error("Google login error:", err);
+            setError(err.response?.data?.error || 'Google login failed. Please try again.');
+            setGoogleLoading(false);
+        }
+    };
     
-    try {
-        const res = await axios.post(
-            "http://127.0.0.1:8000/api/auth/google/",
-            { token: credentialResponse.credential },
-            { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        console.log("Google login response:", res.data);
-
-        
-        
-        localStorage.setItem('access_token', res.data.access);  // ← Same as email login
-        localStorage.setItem('refresh_token', res.data.refresh); // ← Same as email login
-        localStorage.setItem('user', JSON.stringify(res.data.user));
-        
-        // Force a hard reload to ensure auth context picks up the change
-        window.location.href = '/';
-        
-    } catch (err) {
-        console.error("Google login error:", err);
-        setError(err.response?.data?.error || 'Google login failed. Please try again.');
-        setGoogleLoading(false);
-    }
-};
     const handleGoogleError = () => {
         console.error("Google login failed");
         setError('Google login failed. Please try again.');
@@ -123,7 +171,6 @@ const Login = () => {
                             </button>
                         </form>
 
-                        {/* Divider */}
                         <div className="relative my-6">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-300"></div>
@@ -133,7 +180,6 @@ const Login = () => {
                             </div>
                         </div>
 
-                        {/* Google Login Button */}
                         <div className="flex justify-center">
                             {googleLoading ? (
                                 <button 

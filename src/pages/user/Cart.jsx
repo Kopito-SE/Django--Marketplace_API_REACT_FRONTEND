@@ -5,7 +5,7 @@ import { getCart, removeFromCart, updateCartItem, clearCart } from '../../api/ca
 import { useAuth } from '../../hooks/useAuth';
 import { useCart } from '../../context/CartContext';
 import { money } from '../../utils/formatters';
-import { getGuestCart, removeFromGuestCart, updateGuestCartItem, clearGuestCart } from '../../utils/guestCart';
+import { getGuestCart, removeFromGuestCart, updateGuestCartItem, clearGuestCart, saveGuestCartForMerge } from '../../utils/guestCart';
 
 const Cart = () => {
     const [cart, setCart] = useState(null);
@@ -75,6 +75,23 @@ const Cart = () => {
         } finally {
             setIsClearing(false);
             setTimeout(() => setSuccess(''), 3000);
+        }
+    };
+
+    // ✅ UPDATED: Save guest cart before redirecting to login
+    const handleProceedToCheckout = () => {
+        if (!isAuthenticated) {
+            // Save current guest cart for merging after login
+            const currentCart = getGuestCart();
+            if (currentCart.items && currentCart.items.length > 0) {
+                saveGuestCartForMerge(currentCart.items);
+            }
+            
+            // Store the intended destination and redirect to login
+            const returnUrl = '/checkout';
+            navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+        } else {
+            navigate('/checkout');
         }
     };
 
@@ -169,17 +186,10 @@ const Cart = () => {
                             </div>
                         </div>
                     </div>
+                    {/* ✅ UPDATED: Use the new handler */}
                     <button 
                         type="button" 
-                        onClick={() => {
-                            if (!isAuthenticated) {
-                                if (confirm('Please log in to proceed to checkout. Would you like to log in now?')) {
-                                    navigate('/login');
-                                }
-                            } else {
-                                navigate('/checkout');
-                            }
-                        }} 
+                        onClick={handleProceedToCheckout} 
                         className="btn btn-primary mt-6 w-full"
                     >
                         Proceed to Checkout

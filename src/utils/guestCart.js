@@ -1,5 +1,6 @@
 // src/utils/guestCart.js
 const GUEST_CART_KEY = 'guest_cart';
+const PENDING_MERGE_KEY = 'pending_merge_cart';
 
 export const getGuestCart = () => {
     const saved = localStorage.getItem(GUEST_CART_KEY);
@@ -70,6 +71,61 @@ export const clearGuestCart = () => {
     return { items: [], total: 0 };
 };
 
+// NEW: Save guest cart for merging after login
+
+
+// NEW: Clear pending merge cart
+export const clearPendingMergeCart = () => {
+    localStorage.removeItem(PENDING_MERGE_KEY);
+};
+// src/utils/guestCart.js
+
+// Update the saveGuestCartForMerge function
+export const saveGuestCartForMerge = (items) => {
+    if (!items || items.length === 0) return;
+    
+    // Ensure each item has the correct format
+    const formattedItems = items.map(item => ({
+        product_id: parseInt(item.product_id || item.product?.id),
+        quantity: parseInt(item.quantity)
+    }));
+    
+    const mergeData = {
+        items: formattedItems,
+        timestamp: Date.now()
+    };
+    localStorage.setItem(PENDING_MERGE_KEY, JSON.stringify(mergeData));
+    
+    console.log('Saved cart for merge:', mergeData); // Debug log
+};
+
+// Update getPendingMergeCart to ensure proper format
+export const getPendingMergeCart = () => {
+    const pending = localStorage.getItem(PENDING_MERGE_KEY);
+    if (!pending) return null;
+    
+    try {
+        const data = JSON.parse(pending);
+        // Clear if older than 1 hour
+        if (Date.now() - data.timestamp > 3600000) {
+            localStorage.removeItem(PENDING_MERGE_KEY);
+            return null;
+        }
+        
+        // Ensure items are properly formatted
+        const formattedItems = data.items.map(item => ({
+            product_id: parseInt(item.product_id),
+            quantity: parseInt(item.quantity)
+        }));
+        
+        console.log('Retrieved pending merge cart:', formattedItems); // Debug log
+        return formattedItems;
+    } catch (e) {
+        console.error('Error parsing pending merge cart:', e);
+        return null;
+    }
+};
+// Updated: This function now also checks for pending merges
 export const mergeGuestCartWithUser = async (userId) => {
     const guestCart = getGuestCart();
     if (guestCart.items.length === 0) {

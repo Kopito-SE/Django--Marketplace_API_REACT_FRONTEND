@@ -25,7 +25,8 @@ const isPublicEndpoint = (url) => {
         '/cart/',           // Get cart
         '/cart/add/',       // Add to cart
         '/cart/items/',     // Update/remove cart items
-        '/cart/clear/',     // Clear cart
+        '/cart/clear/',
+        '/cart/merge-guest-cart/',     
         '/products/',       // Product list
         '/products/',       // Product details (with ID)
         '/categories/',     // Categories

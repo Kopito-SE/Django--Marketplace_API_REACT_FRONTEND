@@ -19,6 +19,7 @@ export const clearCart = async () => {
     const response = await axiosInstance.delete('/cart/clear/');
     return response.data;
 };
+
 export const removeFromCart = async (itemId) => {
     const response = await axiosInstance.delete(`/cart/items/${itemId}/`);
     return response.data;
@@ -51,5 +52,11 @@ export const updateOrderStatus = async (orderId, status) => {
 
 export const getVendorStats = async () => {
     const response = await axiosInstance.get('/cart/vendor/stats/');
+    return response.data;
+};
+
+// NEW: Merge guest cart with authenticated user's cart
+export const mergeGuestCart = async (items) => {
+    const response = await axiosInstance.post('/cart/merge-guest-cart/', { items });
     return response.data;
 };
