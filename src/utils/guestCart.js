@@ -1,4 +1,3 @@
-// src/utils/guestCart.js
 const GUEST_CART_KEY = 'guest_cart';
 const PENDING_MERGE_KEY = 'pending_merge_cart';
 
