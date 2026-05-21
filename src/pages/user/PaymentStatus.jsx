@@ -3,9 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { CheckCircle2, Clock3, RefreshCcw, XCircle } from 'lucide-react';
 import { checkPaymentStatus } from '../../api/paymentApi';
 import { money } from '../../utils/formatters';
+import { useCart } from '../../context/CartContext'; // ← ADD THIS IMPORT
 
 const PaymentStatus = () => {
     const location = useLocation();
+    const { refreshCart } = useCart(); // ← ADD THIS - to refresh the badge
     
     const checkoutRequestID = useMemo(
         () => location.state?.checkoutRequestID || localStorage.getItem('checkoutRequestID'),
@@ -83,6 +85,12 @@ const PaymentStatus = () => {
             if (newStatus === 'completed' || newStatus === 'failed') {
                 localStorage.removeItem('checkoutRequestID');
                 localStorage.removeItem('currentOrderId');
+                
+                // ✅ WHEN PAYMENT IS COMPLETED, REFRESH THE CART BADGE
+                if (newStatus === 'completed') {
+                    console.log('✅ Payment completed - refreshing cart badge');
+                    await refreshCart(); // This will fetch the latest cart count (should be 0)
+                }
             }
             
         } catch (err) {
@@ -94,7 +102,7 @@ const PaymentStatus = () => {
         } finally {
             setChecking(false);
         }
-    }, [checkoutRequestID, checkCount]);
+    }, [checkoutRequestID, checkCount, refreshCart]); // ← ADD refreshCart to dependencies
 
     // Initial check
     useEffect(() => {
